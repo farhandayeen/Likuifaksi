@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#102b3b" />
+  <title>LIKUIFAKSI — Belajar Gempa & Gelombang dengan AR</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/"}}
+  </script>
+</head>
+<body>
+  <main id="app">
+    <header class="topbar">
+      <div class="brand-mark">L</div>
+      <div><strong>LIKUIFAKSI</strong><small>LAB AR • GEMPA & GELOMBANG</small></div>
+      <button id="helpBtn" class="icon-btn" aria-label="Petunjuk">?</button>
+    </header>
+
+    <section class="intro" id="intro">
+      <span class="eyebrow">MEDIA PEMBELAJARAN SMP</span>
+      <h1>Ketika tanah<br/><em>berubah menjadi cair</em></h1>
+      <p>Amati bagaimana getaran gempa merambat dan dapat memicu likuifaksi pada tanah pasir yang jenuh air.</p>
+      <div class="intro-actions">
+        <button id="startAR" class="primary-btn">Mulai pengalaman AR <span>↗</span></button>
+        <button id="start3D" class="secondary-btn">Coba simulasi 3D</button>
+      </div>
+      <p class="compat-note" id="compatNote">AR memerlukan browser dan perangkat yang mendukung WebXR serta izin kamera.</p>
+    </section>
+
+    <section id="viewer" class="viewer hidden">
+      <div id="sceneHost"></div>
+      <div class="viewer-hud">
+        <div class="stage-pill"><span class="live-dot"></span><span id="stageName">KONDISI AWAL</span></div>
+        <button id="placeAgain" class="small-glass hidden">Atur posisi objek</button>
+      </div>
+      <div class="hint" id="arHint">Arahkan kamera ke lantai atau permukaan datar, lalu ketuk untuk meletakkan model.</div>
+      <div class="control-panel">
+        <div class="panel-head"><div><b>Kontrol simulasi</b><small>Ubah parameter dan amati dampaknya</small></div><button id="panelToggle" class="chevron">⌄</button></div>
+        <div id="panelBody">
+          <label class="range-label"><span>Intensitas getaran</span><b id="intensityValue">6 / 10</b></label>
+          <input id="intensity" type="range" min="1" max="10" value="6" />
+          <label class="range-label"><span>Frekuensi getaran</span><b id="frequencyValue">2.0 Hz</b></label>
+          <input id="frequency" type="range" min="0.5" max="5" step="0.5" value="2" />
+          <label class="range-label" for="soilCondition"><span>Kondisi tanah</span></label>
+          <select id="soilCondition" class="soil-select">
+            <option value="saturated">Pasir lepas jenuh air (rentan)</option>
+            <option value="dense">Pasir padat jenuh air</option>
+            <option value="dry">Pasir kering (tidak jenuh)</option>
+          </select>
+          <div class="science-readout" aria-live="polite">
+            <div><span>Indeks tekanan air pori*</span><b id="poreValue">0%</b></div>
+            <div><span>Tegangan efektif relatif*</span><b id="stressValue">100%</b></div>
+            <p id="scienceExplanation">Tanah berada dalam kondisi awal. Mulai simulasi untuk mengamati perubahan.</p>
+            <small>*Indeks konseptual untuk pembelajaran, bukan hasil pengukuran atau prediksi geoteknik.</small>
+          </div>
+          <div class="button-row"><button id="playBtn" class="primary-btn compact">▶ Mulai gempa</button><button id="resetBtn" class="secondary-btn compact">↺ Ulangi</button></div>
+          <div class="progress-wrap"><div class="progress-meta"><span>Proses simulasi</span><b id="progressText">0%</b></div><div class="progress-track"><div id="progressBar"></div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="lesson" class="lesson">
+      <div class="section-heading"><span class="eyebrow">BELAJAR BERTAHAP</span><h2>Apa yang terjadi di dalam tanah?</h2></div>
+      <div class="lesson-grid">
+        <article><span class="step-no">01</span><h3>Gelombang gempa</h3><p>Gempa menghasilkan gelombang seismik yang membawa energi dan membuat partikel tanah bergetar.</p></article>
+        <article><span class="step-no">02</span><h3>Tekanan air pori</h3><p>Pada pasir lepas yang jenuh air, getaran dapat meningkatkan tekanan air di antara butiran tanah.</p></article>
+        <article><span class="step-no">03</span><h3>Kekuatan tanah turun</h3><p>Jika tekanan air pori meningkat cukup besar, tegangan efektif dan kekuatan tanah dapat menurun drastis.</p></article>
+      </div>
+      <div class="science-note"><b>Catatan sains</b><p>Likuifaksi tidak terjadi pada semua jenis tanah atau setiap gempa. Risiko dipengaruhi oleh jenis dan kepadatan tanah, kejenuhan air, kondisi geologi, serta karakteristik guncangan. Pada pasir lepas yang jenuh air, getaran dapat menaikkan tekanan air pori. Ketika tegangan efektif berkurang, kekuatan dan kekakuan tanah juga dapat menurun.</p></div>
+      <div class="formula-card"><b>Hubungan ilmiah sederhana</b><div class="formula">σ′ = σ − u</div><p>Tegangan efektif (σ′) adalah tegangan total (σ) dikurangi tekanan air pori (u). Simulasi menggunakan indeks ilustratif untuk menunjukkan hubungan ini, bukan menghitung kondisi tanah sebenarnya.</p></div>
+      <button id="quizOpen" class="quiz-launch">Uji pemahamanmu <span>→</span></button>
+    </section>
+
+    <footer>LIKUIFAKSI • Media pembelajaran interaktif<br/><small>Visualisasi konseptual untuk belajar, bukan alat prediksi atau analisis geoteknik.</small></footer>
+  </main>
+
+  <dialog id="helpDialog"><div class="dialog-inner"><button class="close-dialog" data-close>×</button><span class="eyebrow">PETUNJUK PENGGUNAAN</span><h2>Mulai belajar dengan AR</h2><ol><li>Izinkan akses kamera saat browser memintanya.</li><li>Arahkan kamera ke lantai atau meja yang memiliki tekstur dan pencahayaan cukup.</li><li>Ketuk permukaan untuk meletakkan model tanah.</li><li>Atur intensitas dan frekuensi, lalu tekan <b>Mulai gempa</b>.</li><li>Amati perubahan animasi hingga tahap likuifaksi.</li></ol><p>Jika AR tidak didukung, gunakan mode simulasi 3D.</p><button class="primary-btn" data-close> Mengerti </button></div></dialog>
+
+  <dialog id="quizDialog"><div class="dialog-inner"><button class="close-dialog" data-close>×</button><span class="eyebrow">KUIS SINGKAT</span><h2>Seberapa paham kamu?</h2><div id="quizContent"></div><div class="quiz-actions"><button id="nextQuestion" class="primary-btn">Periksa jawaban</button></div></div></dialog>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
