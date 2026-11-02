@@ -1,12 +1,11 @@
 import * as THREE from 'three';
-import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const $ = id => document.getElementById(id);
 const intro=$('intro'), viewer=$('viewer'), lesson=$('lesson'), host=$('sceneHost');
 let renderer, scene, camera, controls, rig, model, ground, waveGroup, building, waterLayer, reticle;
 let clock=new THREE.Clock(), running=false, progress=0, intensity=6, frequency=2, arMode=false, hitSource=null, hitRequested=false, placed=false;
-let animationId, soilCondition='saturated';
+let animationId, soilCondition='saturated', cameraStream=null, overlayMode=false, dragState=null;
 
 function mat(color,roughness=.85,transparent=false,opacity=1){return new THREE.MeshStandardMaterial({color,roughness,transparent,opacity});}
 function makeBox(w,h,d,material,x,y,z,parent){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);m.position.set(x,y,z);parent.add(m);return m;}
@@ -44,7 +43,7 @@ function initScene(){
   camera=new THREE.PerspectiveCamera(55,host.clientWidth/host.clientHeight,.01,100);
   camera.position.set(3.5,2.6,4.6);camera.lookAt(0,-.35,0);
   controls=new OrbitControls(camera,host);controls.target.set(0,-.35,0);controls.enableDamping=true;controls.enablePan=false;controls.minDistance=2.7;controls.maxDistance=8;
-  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setClearColor(0x000000,0);renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(host.clientWidth,host.clientHeight);renderer.xr.enabled=true;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;host.replaceChildren(renderer.domElement);
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setClearColor(0x000000,0);renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(host.clientWidth,host.clientHeight);renderer.xr.enabled=false;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;host.querySelector('canvas')?.remove();host.appendChild(renderer.domElement);
   scene.add(new THREE.HemisphereLight('#e8f8ff','#6b5943',2));const sun=new THREE.DirectionalLight('#fff1d5',2.4);sun.position.set(3,5,4);scene.add(sun);
   buildModel();
   reticle=new THREE.Mesh(new THREE.RingGeometry(.08,.105,32),new THREE.MeshBasicMaterial({color:'#5ed6c0'}));reticle.rotation.x=-Math.PI/2;reticle.matrixAutoUpdate=false;reticle.visible=false;scene.add(reticle);
@@ -54,24 +53,58 @@ function initScene(){
 function resize(){if(!renderer)return;camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight);}
 function susceptibility(){return soilCondition==='saturated'?1:soilCondition==='dense'?.32:.08;}
 function updateScience(){const raw=Math.max(0,(progress-18)/82);const ru=Math.min(.92,raw*Math.pow(intensity/10,1.25)*susceptibility());const effective=1-ru;const pore=Math.round(ru*100);$('poreValue').textContent=pore+'%';$('stressValue').textContent=Math.round(effective*100)+'%';let explanation='Getaran belum cukup berkembang untuk menunjukkan perubahan berarti pada tekanan air pori.';if(soilCondition==='dry')explanation='Tanah kering tidak memiliki kejenuhan air yang diperlukan untuk mekanisme likuifaksi klasik. Guncangan tetap dapat menggeser atau memadatkan tanah.';else if(soilCondition==='dense')explanation='Pasir padat jenuh air umumnya lebih tahan terhadap kontraksi. Pada model pembelajaran ini, kenaikan indeks tekanan air porinya dibuat lebih kecil.';else if(ru<.2)explanation='Pada pasir lepas jenuh air, getaran siklik mulai dapat menaikkan tekanan air pori.';else if(ru<.65)explanation='Tekanan air pori meningkat. Tegangan efektif yang menjaga butiran saling mengunci mulai berkurang.';else explanation='Indeks tekanan air pori tinggi: kekuatan tanah dapat turun tajam dan deformasi permukaan menjadi lebih mungkin.';$('scienceExplanation').textContent=explanation;return ru;}
-function render(){const dt=Math.min(clock.getDelta(),.05);if(controls&&!renderer.xr.isPresenting&&controls.enabled)controls.update();if(running){progress=Math.min(100,progress+dt*7.2);$('progressBar').style.width=progress+'%';$('progressText').textContent=Math.round(progress)+'%';updateStage();}
+function render(){const dt=Math.min(clock.getDelta(),.05);if(controls&&controls.enabled)controls.update();if(running){progress=Math.min(100,progress+dt*7.2);$('progressBar').style.width=progress+'%';$('progressText').textContent=Math.round(progress)+'%';updateStage();}
   const t=clock.elapsedTime;const amp=(intensity/10)*.045*(running?1:.08);if(model){model.position.x=Math.sin(t*frequency*2*Math.PI)*amp;model.rotation.z=Math.sin(t*frequency*2*Math.PI*.5)*amp*.12;}
   if(waveGroup){waveGroup.children.forEach((r,i)=>{const phase=(t*frequency*.7+i*.24)%1;r.scale.setScalar(.45+phase*2.6);r.material.opacity=(1-phase)*.8;});}
   const ru=updateScience();const liqui=Math.max(0,(ru-.25)/.67);if(waterLayer){waterLayer.material.opacity=soilCondition==='dry'?.12:(soilCondition==='dense'?.42:.48+liqui*.32);}if(building){building.position.y=-liqui*.15;building.rotation.z=Math.sin(t*frequency)*liqui*.08;}
-  if(arMode&&renderer.xr.isPresenting){const session=renderer.xr.getSession();if(session&&!hitRequested){session.requestReferenceSpace('viewer').then(ref=>session.requestHitTestSource({space:ref})).then(src=>{hitSource=src;$('arHint').textContent='Gerakkan HP perlahan untuk mencari permukaan. Ketuk saat lingkaran hijau muncul.';}).catch(()=>{$('arHint').textContent='Fitur pemindaian permukaan tidak tersedia. Periksa dukungan ARCore/WebXR pada perangkat.';});hitRequested=true;}
-    const frame=renderer.xr.getFrame();if(frame&&hitSource){const hits=frame.getHitTestResults(hitSource);if(hits.length){const pose=hits[0].getPose(renderer.xr.getReferenceSpace());reticle.visible=!placed;reticle.matrix.fromArray(pose.transform.matrix);if(!placed&&rig){rig.position.setFromMatrixPosition(reticle.matrix);rig.quaternion.setFromRotationMatrix(new THREE.Matrix4().extractRotation(reticle.matrix));}}else reticle.visible=false;}}
   renderer.render(scene,camera);
 }
 function updateStage(){let name='GEMPA BERLANGSUNG';if(progress>20)name='GELOMBANG MERAMBAT';if(progress>48)name='TEKANAN AIR PORI MENINGKAT';if(progress>78)name=soilCondition==='saturated'?'POTENSI LIKUIFAKSI':'RESPONS TANAH';$('stageName').textContent=name;}
-function startViewer(ar){intro.classList.add('hidden');lesson.classList.add('hidden');viewer.classList.remove('hidden');arMode=ar;placed=!ar;progress=0;running=false;$('progressBar').style.width='0%';$('progressText').textContent='0%';$('playBtn').textContent='▶ Mulai gempa';$('stageName').textContent='KONDISI AWAL';updateScience();$('arHint').textContent=ar?'Arahkan kamera ke lantai atau meja, lalu ketuk untuk meletakkan model.':'Mode 3D: putar tampilan dengan menggeser layar atau mouse.';$('placeAgain').classList.toggle('hidden',!ar);
-  if(!renderer){initScene();}else{resize();}if(rig){rig.scale.setScalar(ar ? 0.42 : 1);}if(controls){controls.enabled=!ar;}
-  if(ar){if(!navigator.xr){$('compatNote').textContent='Browser ini belum menyediakan WebXR AR. Coba mode simulasi 3D atau gunakan Chrome Android yang kompatibel.';$('arHint').textContent='AR tidak tersedia di browser ini. Silakan gunakan mode 3D.';arMode=false;placed=true;if(controls)controls.enabled=true;if(rig)rig.scale.setScalar(1);return;}
-    const button=ARButton.createButton(renderer,{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:document.body}});button.textContent='Masuk ke mode AR';button.style.position='absolute';button.style.left='50%';button.style.bottom='210px';button.style.transform='translateX(-50%)';button.style.zIndex='20';button.style.padding='12px 18px';button.style.border='1px solid #ffffff55';button.style.borderRadius='10px';button.style.background='#5ed6c0';button.style.color='#092a34';button.style.fontWeight='800';viewer.appendChild(button);$('arHint').textContent='Ketuk tombol Masuk ke mode AR, izinkan kamera, lalu arahkan ke permukaan datar.';
-    renderer.xr.addEventListener('sessionstart',()=>{scene.background=null;renderer.setClearColor(0x000000,0);$('arHint').textContent='Gerakkan HP perlahan ke kiri-kanan dan arahkan ke lantai. Ketuk saat lingkaran penanda muncul.';});renderer.xr.addEventListener('sessionend',()=>{arMode=false;hitSource=null;hitRequested=false;scene.background=new THREE.Color('#b8d2d5');renderer.setClearColor(0x000000,0);button.remove();if(controls)controls.enabled=true;if(rig)rig.scale.setScalar(1);});
-    renderer.domElement.addEventListener('click',()=>{if(reticle.visible){placed=true;reticle.visible=false;$('arHint').textContent='Model ditempatkan. Atur parameter lalu mulai gempa.';}});
+async function stopCameraOverlay(){
+  if(cameraStream){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null;}
+  const video=$('cameraFeed');if(video){video.pause();video.srcObject=null;video.classList.add('hidden');}
+  overlayMode=false;arMode=false;
+  if(scene)scene.background=new THREE.Color('#b8d2d5');
+  if(rig){rig.position.set(0,0,0);rig.rotation.set(0,0,0);rig.scale.setScalar(1);}
+  if(controls)controls.enabled=true;
+  $('stopCamera').classList.add('hidden');
+}
+async function startViewer(ar){
+  intro.classList.add('hidden');lesson.classList.add('hidden');viewer.classList.remove('hidden');
+  arMode=!!ar;overlayMode=!!ar;placed=!ar;progress=0;running=false;
+  $('progressBar').style.width='0%';$('progressText').textContent='0%';$('playBtn').textContent='▶ Mulai gempa';$('stageName').textContent='KONDISI AWAL';updateScience();
+  $('placeAgain').classList.toggle('hidden',!ar);$('stopCamera').classList.toggle('hidden',!ar);
+  if(!renderer)initScene();else resize();
+  if(rig){rig.scale.setScalar(ar?.48:1);rig.position.set(0,0,0);}
+  if(controls)controls.enabled=!ar;
+  const video=$('cameraFeed');
+  if(ar){
+    if(!navigator.mediaDevices?.getUserMedia){$('arHint').textContent='Browser tidak menyediakan akses kamera. Pastikan website HTTPS dan gunakan Chrome terbaru.';return;}
+    $('arHint').textContent='Meminta akses kamera belakang…';
+    try{
+      cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});
+      video.srcObject=cameraStream;video.classList.remove('hidden');await video.play();
+      scene.background=null;renderer.setClearColor(0x000000,0);overlayMode=true;
+      $('arHint').textContent='Mode kamera aktif. Model 3D tampil sebagai overlay. Geser model dengan jari untuk mengatur posisinya.';
+      $('compatNote').textContent='Mode kamera overlay aktif. Mode ini tidak memakai pelacakan permukaan ARCore.';
+      placed=true;
+    }catch(err){
+      console.error('Camera error:',err);await stopCameraOverlay();
+      $('arHint').textContent=err?.name==='NotAllowedError'?'Izin kamera ditolak. Izinkan Kamera untuk situs ini di setelan Chrome, lalu coba lagi.':err?.name==='NotFoundError'?'Kamera tidak ditemukan pada perangkat.':'Kamera gagal dibuka ('+(err?.name||'error')+'). Pastikan HTTPS, tutup aplikasi lain yang memakai kamera, lalu coba lagi.';
+      $('stopCamera').classList.add('hidden');return;
+    }
+  }else{
+    await stopCameraOverlay();scene.background=new THREE.Color('#b8d2d5');renderer.setClearColor(0x000000,0);
+    $('arHint').textContent='Mode 3D: putar tampilan dengan menggeser layar atau mouse.';
   }
 }
 $('startAR').addEventListener('click',()=>startViewer(true));$('start3D').addEventListener('click',()=>startViewer(false));
+$('stopCamera').addEventListener('click',async()=>{await stopCameraOverlay();$('arHint').textContent='Kamera dihentikan. Anda dapat kembali ke mode 3D.';});
+// Touch-drag moves the overlay model on screen; this is a visual overlay, not world-locked AR tracking.
+const sceneHost=$('sceneHost');
+sceneHost.addEventListener('pointerdown',e=>{if(!overlayMode||!rig)return;dragState={x:e.clientX,y:e.clientY,px:rig.position.x,py:rig.position.y};sceneHost.setPointerCapture?.(e.pointerId);});
+sceneHost.addEventListener('pointermove',e=>{if(!dragState||!rig)return;const dx=(e.clientX-dragState.x)/Math.max(1,sceneHost.clientWidth);const dy=(e.clientY-dragState.y)/Math.max(1,sceneHost.clientHeight);rig.position.x=dragState.px+dx*2.2;rig.position.y=dragState.py-dy*1.5;});
+sceneHost.addEventListener('pointerup',()=>{dragState=null;});sceneHost.addEventListener('pointercancel',()=>{dragState=null;});
 $('intensity').addEventListener('input',e=>{intensity=+e.target.value;$('intensityValue').textContent=intensity+' / 10';updateScience();});$('frequency').addEventListener('input',e=>{frequency=+e.target.value;$('frequencyValue').textContent=frequency.toFixed(1)+' Hz';});$('soilCondition').addEventListener('change',e=>{soilCondition=e.target.value;progress=0;running=false;$('progressBar').style.width='0%';$('progressText').textContent='0%';$('playBtn').textContent='▶ Mulai gempa';$('stageName').textContent='KONDISI AWAL';if(building){building.position.y=0;building.rotation.z=0;}updateScience();});
 $('playBtn').addEventListener('click',()=>{if(progress>=100){progress=0;building.position.y=0;building.rotation.z=0;}running=!running;$('playBtn').textContent=running?'Ⅱ Jeda gempa':'▶ Lanjutkan gempa';});
 $('resetBtn').addEventListener('click',()=>{running=false;progress=0;building.position.y=0;building.rotation.z=0;waterLayer.material.opacity=soilCondition==='dry'?.12:.48;$('playBtn').textContent='▶ Mulai gempa';$('progressBar').style.width='0%';$('progressText').textContent='0%';$('stageName').textContent='KONDISI AWAL';updateScience();});

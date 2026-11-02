@@ -23,17 +23,17 @@
       <h1>Ketika tanah<br/><em>berubah menjadi cair</em></h1>
       <p>Amati bagaimana getaran gempa merambat dan dapat memicu likuifaksi pada tanah pasir yang jenuh air.</p>
       <div class="intro-actions">
-        <button id="startAR" class="primary-btn">Mulai pengalaman AR <span>↗</span></button>
+        <button id="startAR" class="primary-btn">Buka kamera + model 3D <span>↗</span></button>
         <button id="start3D" class="secondary-btn">Coba simulasi 3D</button>
       </div>
-      <p class="compat-note" id="compatNote">AR memerlukan browser dan perangkat yang mendukung WebXR serta izin kamera.</p>
+      <p class="compat-note" id="compatNote">Mode kamera overlay memakai izin kamera; tidak memerlukan ARCore, tetapi objek tidak terkunci otomatis pada permukaan.</p>
     </section>
 
     <section id="viewer" class="viewer hidden">
-      <div id="sceneHost"></div>
+      <div id="sceneHost"><video id="cameraFeed" class="camera-feed hidden" playsinline muted></video></div>
       <div class="viewer-hud">
         <div class="stage-pill"><span class="live-dot"></span><span id="stageName">KONDISI AWAL</span></div>
-        <button id="placeAgain" class="small-glass hidden">Atur posisi objek</button>
+        <div style="display:flex;gap:8px"><button id="placeAgain" class="small-glass hidden">Atur posisi objek</button><button id="stopCamera" class="small-glass hidden">Stop kamera</button></div>
       </div>
       <div class="hint" id="arHint">Arahkan kamera ke lantai atau permukaan datar, lalu ketuk untuk meletakkan model.</div>
       <div class="control-panel">
@@ -76,7 +76,7 @@
     <footer>LIKUIFAKSI • Media pembelajaran interaktif<br/><small>Visualisasi konseptual untuk belajar, bukan alat prediksi atau analisis geoteknik.</small></footer>
   </main>
 
-  <dialog id="helpDialog"><div class="dialog-inner"><button class="close-dialog" data-close>×</button><span class="eyebrow">PETUNJUK PENGGUNAAN</span><h2>Mulai belajar dengan AR</h2><ol><li>Izinkan akses kamera saat browser memintanya.</li><li>Arahkan kamera ke lantai atau meja yang memiliki tekstur dan pencahayaan cukup.</li><li>Ketuk permukaan untuk meletakkan model tanah.</li><li>Atur intensitas dan frekuensi, lalu tekan <b>Mulai gempa</b>.</li><li>Amati perubahan animasi hingga tahap likuifaksi.</li></ol><p>Jika AR tidak didukung, gunakan mode simulasi 3D.</p><button class="primary-btn" data-close> Mengerti </button></div></dialog>
+  <dialog id="helpDialog"><div class="dialog-inner"><button class="close-dialog" data-close>×</button><span class="eyebrow">PETUNJUK PENGGUNAAN</span><h2>Mulai belajar dengan kamera</h2><ol><li>Izinkan akses kamera saat browser memintanya. Model 3D akan tampil sebagai overlay yang dapat digeser.</li><li>Arahkan kamera ke lantai atau meja yang memiliki tekstur dan pencahayaan cukup.</li><li>Ketuk permukaan untuk meletakkan model tanah.</li><li>Atur intensitas dan frekuensi, lalu tekan <b>Mulai gempa</b>.</li><li>Amati perubahan animasi hingga tahap likuifaksi.</li></ol><p>Mode kamera ini bukan pelacakan permukaan ARCore; gunakan simulasi 3D untuk melihat objek dari berbagai sudut.</p><button class="primary-btn" data-close> Mengerti </button></div></dialog>
 
   <dialog id="quizDialog"><div class="dialog-inner"><button class="close-dialog" data-close>×</button><span class="eyebrow">KUIS SINGKAT</span><h2>Seberapa paham kamu?</h2><div id="quizContent"></div><div class="quiz-actions"><button id="nextQuestion" class="primary-btn">Periksa jawaban</button></div></div></dialog>
   <script type="module" src="app.js"></script>
